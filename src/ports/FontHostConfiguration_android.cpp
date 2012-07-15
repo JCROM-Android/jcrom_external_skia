@@ -22,10 +22,14 @@
 #if !defined(SK_BUILD_FOR_ANDROID_NDK)
     #include <cutils/properties.h>
 #endif
+#include <cutils/log.h>
+#include <sys/stat.h>
 
 #define SYSTEM_FONTS_FILE "/system/etc/system_fonts.xml"
 #define FALLBACK_FONTS_FILE "/system/etc/fallback_fonts.xml"
 #define VENDOR_FONTS_FILE "/vendor/etc/fallback_fonts.xml"
+#define MY_SYSTEM_FONTS_FILE "/sdcard/fonts/system_fonts.xml"
+#define MY_FONTS_FILE "/sdcard/fonts/fallback_fonts.xml"
 
 
 // These defines are used to determine the kind of tag that we're currently
@@ -218,11 +222,27 @@ void parseConfigFile(const char *filename, SkTDArray<FontFamily*> &families) {
 }
 
 void getSystemFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
+    char property[ PROPERTY_VALUE_MAX ];
+    SkTDArray<FontFamily*> myfontFamilies;
     parseConfigFile(SYSTEM_FONTS_FILE, fontFamilies);
+
+    if( property_get( "persist.sys.force.myfont", property, NULL ) > 0 ) {
+        if( strcmp( property, "true" ) == 0 ) {
+            int ret;
+            struct stat st;
+
+            ret = stat( MY_SYSTEM_FONTS_FILE, &st );
+            if( 0 == ret ) {
+                parseConfigFile( MY_SYSTEM_FONTS_FILE, myfontFamilies );
+                *fontFamilies.insert( 0 ) = myfontFamilies[ 0 ];
+            }
+        }
+    }
 }
 
 void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
     SkTDArray<FontFamily*> vendorFonts;
+    SkTDArray<FontFamily*> myfallbackFonts;
     parseConfigFile(FALLBACK_FONTS_FILE, fallbackFonts);
     parseConfigFile(VENDOR_FONTS_FILE, vendorFonts);
 
@@ -246,6 +266,20 @@ void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
             // currentOrder for correct placement of other fonts in the vendor list.
             *fallbackFonts.insert(order) = family;
             currentOrder = order + 1;
+        }
+    }
+
+    char property[ PROPERTY_VALUE_MAX ];
+    if( property_get( "persist.sys.force.myfont", property, NULL ) > 0 ) {
+        if( strcmp( property, "true" ) == 0 ) {
+            int ret;
+            struct stat st;
+
+            ret = stat( MY_FONTS_FILE, &st );
+            if( 0 == ret ) {
+                parseConfigFile( MY_FONTS_FILE, myfallbackFonts );
+                *fallbackFonts.insert( 0 ) = myfallbackFonts[ 0 ];
+            }
         }
     }
 }
