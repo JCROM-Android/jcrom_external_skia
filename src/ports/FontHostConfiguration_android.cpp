@@ -29,9 +29,8 @@
 #define SYSTEM_FONTS_FILE "/system/etc/system_fonts.xml"
 #define FALLBACK_FONTS_FILE "/system/etc/fallback_fonts.xml"
 #define VENDOR_FONTS_FILE "/vendor/etc/fallback_fonts.xml"
-#define MY_SYSTEM_FONTS_FILE "/sdcard/fonts/system_fonts.xml"
-#define MY_FONTS_FILE "/sdcard/fonts/fallback_fonts.xml"
-
+#define MY_SYSTEM_FONTS_FILE "/data/theme/font/system_fonts.xml"
+#define MY_FONTS_FILE "/data/theme/font/fallback_fonts.xml"
 
 // These defines are used to determine the kind of tag that we're currently
 // populating with data. We only care about the sibling tags nameset and fileset
@@ -205,7 +204,7 @@ void getSystemFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
     SkTDArray<FontFamily*> myfontFamilies;
     parseConfigFile(SYSTEM_FONTS_FILE, fontFamilies);
 
-    if( property_get( "persist.sys.force.myfont", property, NULL ) > 0 ) {
+    if( property_get( "persist.sys.force.hobby", property, NULL ) > 0 ) {
         if( strcmp( property, "true" ) == 0 ) {
             int ret;
             struct stat st;
@@ -213,7 +212,9 @@ void getSystemFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
             ret = stat( MY_SYSTEM_FONTS_FILE, &st );
             if( 0 == ret ) {
                 parseConfigFile( MY_SYSTEM_FONTS_FILE, myfontFamilies );
-                *fontFamilies.insert( 0 ) = myfontFamilies[ 0 ];
+                for (int i = 0; i < myfontFamilies.count(); ++i) {
+                    *fontFamilies.insert( i ) = myfontFamilies[ i ];
+                }
             }
         }
     }
@@ -249,7 +250,7 @@ void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
     }
 
     char property[ PROPERTY_VALUE_MAX ];
-    if( property_get( "persist.sys.force.myfont", property, NULL ) > 0 ) {
+    if( property_get( "persist.sys.force.hobby", property, NULL ) > 0 ) {
         if( strcmp( property, "true" ) == 0 ) {
             int ret;
             struct stat st;
@@ -257,7 +258,9 @@ void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
             ret = stat( MY_FONTS_FILE, &st );
             if( 0 == ret ) {
                 parseConfigFile( MY_FONTS_FILE, myfallbackFonts );
-                *fallbackFonts.insert( 0 ) = myfallbackFonts[ 0 ];
+                for (int i = 0; i < myfallbackFonts.count(); ++i) {
+                    *fallbackFonts.insert( i ) = myfallbackFonts[ i ];
+                }
             }
         }
     }
