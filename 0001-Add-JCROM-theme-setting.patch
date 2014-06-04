@@ -1,0 +1,86 @@
+From 457b76a731d0b2f0ad416619b654f080406abf0d Mon Sep 17 00:00:00 2001
+From: Akihiro Maeda <sola.1980.a@gmail.com>
+Date: Wed, 4 Jun 2014 23:15:48 +0900
+Subject: [PATCH] Add JCROM theme setting
+
+ - font
+---
+ src/ports/SkFontConfigParser_android.cpp | 39 ++++++++++++++++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+diff --git a/src/ports/SkFontConfigParser_android.cpp b/src/ports/SkFontConfigParser_android.cpp
+index 73de73b..9b0b5d1 100644
+--- a/src/ports/SkFontConfigParser_android.cpp
++++ b/src/ports/SkFontConfigParser_android.cpp
+@@ -12,10 +12,15 @@
+ #include <expat.h>
+ #include <stdio.h>
+ #include <sys/system_properties.h>
++#include <cutils/properties.h>
++#include <cutils/log.h>
++#include <sys/stat.h>
+ 
+ #define SYSTEM_FONTS_FILE "/system/etc/system_fonts.xml"
+ #define FALLBACK_FONTS_FILE "/system/etc/fallback_fonts.xml"
+ #define VENDOR_FONTS_FILE "/vendor/etc/fallback_fonts.xml"
++#define MY_SYSTEM_FONTS_FILE "/data/theme/font/system_fonts.xml"
++#define MY_FONTS_FILE "/data/theme/font/fallback_fonts.xml"
+ 
+ // These defines are used to determine the kind of tag that we're currently
+ // populating with data. We only care about the sibling tags nameset and fileset
+@@ -225,11 +230,29 @@ static void parseConfigFile(const char *filename, SkTDArray<FontFamily*> &famili
+ }
+ 
+ static void getSystemFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
++    char property[ PROPERTY_VALUE_MAX ];
++    SkTDArray<FontFamily*> myfontFamilies;
+     parseConfigFile(SYSTEM_FONTS_FILE, fontFamilies);
++
++    if( property_get( "persist.sys.force.hobby", property, NULL ) > 0 ) {
++        if( strcmp( property, "true" ) == 0 ) {
++            int ret;
++            struct stat st;
++
++            ret = stat( MY_SYSTEM_FONTS_FILE, &st );
++            if( 0 == ret ) {
++                parseConfigFile( MY_SYSTEM_FONTS_FILE, myfontFamilies );
++                for (int i = 0; i < myfontFamilies.count(); ++i) {
++                    *fontFamilies.insert( i ) = myfontFamilies[ i ];
++                }
++            }
++        }
++    }
+ }
+ 
+ static void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
+     SkTDArray<FontFamily*> vendorFonts;
++    SkTDArray<FontFamily*> myfallbackFonts;
+     parseConfigFile(FALLBACK_FONTS_FILE, fallbackFonts);
+     parseConfigFile(VENDOR_FONTS_FILE, vendorFonts);
+ 
+@@ -255,6 +278,22 @@ static void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
+             currentOrder = order + 1;
+         }
+     }
++
++    char property[ PROPERTY_VALUE_MAX ];
++    if( property_get( "persist.sys.force.hobby", property, NULL ) > 0 ) {
++        if( strcmp( property, "true" ) == 0 ) {
++            int ret;
++            struct stat st;
++
++            ret = stat( MY_FONTS_FILE, &st );
++            if( 0 == ret ) {
++                parseConfigFile( MY_FONTS_FILE, myfallbackFonts );
++                for (int i = 0; i < myfallbackFonts.count(); ++i) {
++                    *fallbackFonts.insert( i ) = myfallbackFonts[ i ];
++                }
++            }
++        }
++    }
+ }
+ 
+ /**
+-- 
+1.9.1
+
