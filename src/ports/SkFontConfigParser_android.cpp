@@ -12,15 +12,11 @@
 #include <expat.h>
 #include <stdio.h>
 #include <sys/system_properties.h>
-#include <cutils/properties.h>
-#include <cutils/log.h>
-#include <sys/stat.h>
+#include <unistd.h>
 
 #define SYSTEM_FONTS_FILE "/system/etc/system_fonts.xml"
 #define FALLBACK_FONTS_FILE "/system/etc/fallback_fonts.xml"
 #define VENDOR_FONTS_FILE "/vendor/etc/fallback_fonts.xml"
-#define MY_SYSTEM_FONTS_FILE "/data/theme/font/system_fonts.xml"
-#define MY_FONTS_FILE "/data/theme/font/fallback_fonts.xml"
 
 // These defines are used to determine the kind of tag that we're currently
 // populating with data. We only care about the sibling tags nameset and fileset
@@ -230,29 +226,11 @@ static void parseConfigFile(const char *filename, SkTDArray<FontFamily*> &famili
 }
 
 static void getSystemFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
-    char property[ PROPERTY_VALUE_MAX ];
-    SkTDArray<FontFamily*> myfontFamilies;
     parseConfigFile(SYSTEM_FONTS_FILE, fontFamilies);
-
-    if( property_get( "persist.sys.force.hobby", property, NULL ) > 0 ) {
-        if( strcmp( property, "true" ) == 0 ) {
-            int ret;
-            struct stat st;
-
-            ret = stat( MY_SYSTEM_FONTS_FILE, &st );
-            if( 0 == ret ) {
-                parseConfigFile( MY_SYSTEM_FONTS_FILE, myfontFamilies );
-                for (int i = 0; i < myfontFamilies.count(); ++i) {
-                    *fontFamilies.insert( i ) = myfontFamilies[ i ];
-                }
-            }
-        }
-    }
 }
 
 static void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
     SkTDArray<FontFamily*> vendorFonts;
-    SkTDArray<FontFamily*> myfallbackFonts;
     parseConfigFile(FALLBACK_FONTS_FILE, fallbackFonts);
     parseConfigFile(VENDOR_FONTS_FILE, vendorFonts);
 
@@ -278,19 +256,37 @@ static void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
             currentOrder = order + 1;
         }
     }
+}
 
-    char property[ PROPERTY_VALUE_MAX ];
-    if( property_get( "persist.sys.force.hobby", property, NULL ) > 0 ) {
-        if( strcmp( property, "true" ) == 0 ) {
-            int ret;
-            struct stat st;
+static void getThemeFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
+    parseConfigFile(THEME_FONTS_FILE, fontFamilies);
+}
 
-            ret = stat( MY_FONTS_FILE, &st );
-            if( 0 == ret ) {
-                parseConfigFile( MY_FONTS_FILE, myfallbackFonts );
-                for (int i = 0; i < myfallbackFonts.count(); ++i) {
-                    *fallbackFonts.insert( i ) = myfallbackFonts[ i ];
-                }
+static bool hasFontFamily(const char* familyName, SkTDArray<FontFamily*> &fontFamilies) {
+    for (int i = 0; i < fontFamilies.count(); i++) {
+        FontFamily* family = fontFamilies[i];
+        for (int j = 0; j < family->fNames.count(); j++) {
+            const char* name = family->fNames[j];
+            if (strcmp(name, familyName) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Adds missing font families found in system fonts that are not in the theme's fonts
+ */
+static void addSystemFontsToThemeFonts(SkTDArray<FontFamily*> &themeFontFamilies,
+                                       SkTDArray<FontFamily*> &systemFontFamilies) {
+    for (int i = 0; i < systemFontFamilies.count(); i++) {
+        FontFamily* family = systemFontFamilies[i];
+        for (int j = 0; j < family->fNames.count(); j++) {
+            const char* name = family->fNames[j];
+            if (!hasFontFamily(name, themeFontFamilies)) {
+                systemFontFamilies[i]->fIsThemeFallbackFont = true;
+                *themeFontFamilies.append() = systemFontFamilies[i];
             }
         }
     }
@@ -302,7 +298,24 @@ static void getFallbackFontFamilies(SkTDArray<FontFamily*> &fallbackFonts) {
  */
 void SkFontConfigParser::GetFontFamilies(SkTDArray<FontFamily*> &fontFamilies) {
 
-    getSystemFontFamilies(fontFamilies);
+    //Determine if we want to use themes
+    bool use_theme_font = false;
+    if (access(THEME_FONTS_FILE, R_OK) == 0) {
+        use_theme_font = true;
+    }
+
+    if (use_theme_font) {
+        getThemeFontFamilies(fontFamilies);
+        if (fontFamilies.count() > 0) {
+            SkTDArray<FontFamily*> systemFontFamilies;
+            getSystemFontFamilies(systemFontFamilies);
+            addSystemFontsToThemeFonts(fontFamilies, systemFontFamilies);
+        }
+    }
+
+    if (!use_theme_font || fontFamilies.count() == 0) {
+        getSystemFontFamilies(fontFamilies);
+    }
 
     // Append all the fallback fonts to system fonts
     SkTDArray<FontFamily*> fallbackFonts;

@@ -14,6 +14,7 @@
 #include "SkStream.h"
 #include "SkTypeface.h"
 #include "SkTypefaceCache.h"
+#include <sys/system_properties.h>
 
 // Defined in SkFontHost_FreeType.cpp
 bool find_name_and_attributes(SkStream* stream, SkString* name,
@@ -159,6 +160,11 @@ SkTypeface* SkFontHost::CreateTypefaceFromStream(SkStream* stream) {
 SkTypeface* SkFontHost::CreateTypefaceFromFile(const char path[]) {
     SkAutoTUnref<SkStream> stream(SkStream::NewFromFile(path));
     return stream.get() ? CreateTypefaceFromStream(stream) : NULL;
+}
+
+void SkFontHost::ClearCache() {
+    SkFontConfigInterface::SetGlobal(NULL);
+    SkFontConfigInterface::ClearSingletonInterface();
 }
 
 #endif
